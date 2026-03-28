@@ -9,10 +9,29 @@ local module = {}
 local visitedServers = {}
 local cursor = nil
 local hopping = false
+local retrying = false
+local currentPlaceId = nil
+
+TeleportService.TeleportInitFailed:Connect(function(plr, result, err, placeId, instanceId)
+    if plr ~= player then return end
+    if retrying then return end
+
+    retrying = true
+
+    warn("Teleport failed:", result, err)
+
+    task.wait(2)
+
+    if module and currentPlaceId then
+        module:Teleport(currentPlaceId)
+    end
+
+    task.wait(3)
+    retrying = false
+end)
 
 local function getServers(placeId)
     local url = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
-
     if cursor then
         url = url .. "&cursor=" .. cursor
     end
@@ -33,6 +52,7 @@ end
 local function hop(placeId)
     if hopping then return end
     hopping = true
+    currentPlaceId = placeId
 
     while true do
         task.wait(2)
@@ -41,35 +61,28 @@ local function hop(placeId)
         if not data then continue end
 
         cursor = data.nextPageCursor
-
-        local foundServer = false
+        local found = false
 
         for _, server in pairs(data.data) do
             if server.playing < server.maxPlayers then
                 local id = server.id
-
                 if not visitedServers[id] then
                     visitedServers[id] = true
-                    foundServer = true
+                    found = true
 
-                    print("Joining server:", id)
+                    print("Attempting server:", id)
 
-                    local success, err = pcall(function()
+                    pcall(function()
                         TeleportService:TeleportToPlaceInstance(placeId, id, player)
                     end)
 
-                    if success then
-                        task.wait(5)
-                        return
-                    else
-                        warn("Teleport failed:", err)
-                    end
+                    task.wait(2)
                 end
             end
         end
 
-        if not foundServer then
-            print("No available servers here, moving on...")
+        if not found then
+            print("No available servers here, continuing...")
         end
 
         if not cursor then
