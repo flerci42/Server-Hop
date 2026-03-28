@@ -87,7 +87,7 @@ local hopping = false
 
 local function getServers(placeId)
     local url = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
-    
+
     if cursor then
         url = url .. "&cursor=" .. cursor
     end
@@ -97,48 +97,59 @@ local function getServers(placeId)
     end)
 
     if not success then
-        warn("Request failed, retrying...")
+        warn("HTTP failed, retrying...")
         task.wait(2)
         return nil
     end
 
-    local data = HttpService:JSONDecode(response)
-    return data
+    return HttpService:JSONDecode(response)
 end
 
 local function hop(placeId)
     if hopping then return end
     hopping = true
 
-    while task.wait(2) do
-        local serverData = getServers(placeId)
+    while true do
+        task.wait(2)
 
-        if not serverData then continue end
+        local data = getServers(placeId)
+        if not data then continue end
 
-        cursor = serverData.nextPageCursor
+        cursor = data.nextPageCursor
 
-        for _, server in pairs(serverData.data) do
-            local id = server.id
+        local foundServer = false
 
-            if server.playing < server.maxPlayers and not visitedServers[id] then
-                visitedServers[id] = true
+        for _, server in pairs(data.data) do
+            if server.playing < server.maxPlayers then
+                local id = server.id
 
-                print("Teleporting to:", id)
+                if not visitedServers[id] then
+                    visitedServers[id] = true
+                    foundServer = true
 
-                local success, err = pcall(function()
-                    TeleportService:TeleportToPlaceInstance(placeId, id, player)
-                end)
+                    print("Joining server:", id)
 
-                if success then
-                    task.wait(5)
-                    return
-                else
-                    warn("Teleport failed:", err)
+                    local success, err = pcall(function()
+                        TeleportService:TeleportToPlaceInstance(placeId, id, player)
+                    end)
+
+                    if success then
+                        task.wait(5)
+                        return
+                    else
+                        warn("Teleport failed:", err)
+                    end
                 end
             end
         end
 
+        if not foundServer then
+            print("No available servers here, moving on...")
+        end
+
         if not cursor then
+            print("Reached end, restarting search...")
+            visitedServers = {}
             cursor = nil
             task.wait(1)
         end
