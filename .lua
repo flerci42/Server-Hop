@@ -1,3 +1,4 @@
+-- ServerHop Module
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -12,23 +13,17 @@ local hopping = false
 local retrying = false
 local currentPlaceId = nil
 
-TeleportService.TeleportInitFailed:Connect(function(plr, result, err, placeId, instanceId)
-    if plr ~= player then return end
-    if retrying then return end
-
-    retrying = true
-
-    warn("Teleport failed:", result, err)
-
-    task.wait(2)
-
-    if module and currentPlaceId then
-        module:Teleport(currentPlaceId)
+local function safeJSONDecode(str)
+    local success, result = pcall(function()
+        return HttpService:JSONDecode(str)
+    end)
+    if success then
+        return result
+    else
+        warn("JSON decode failed, retrying...")
+        return nil
     end
-
-    task.wait(3)
-    retrying = false
-end)
+end
 
 local function getServers(placeId)
     local url = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
@@ -40,13 +35,19 @@ local function getServers(placeId)
         return game:HttpGet(url)
     end)
 
-    if not success then
-        warn("HTTP failed, retrying...")
+    if not success or not response then
+        warn("HTTP request failed, retrying...")
         task.wait(2)
         return nil
     end
 
-    return HttpService:JSONDecode(response)
+    local data = safeJSONDecode(response)
+    if not data then
+        task.wait(1)
+        return nil
+    end
+
+    return data
 end
 
 local function hop(placeId)
@@ -82,7 +83,7 @@ local function hop(placeId)
         end
 
         if not found then
-            print("No available servers here, continuing...")
+            print("No available servers in this batch, continuing...")
         end
 
         if not cursor then
@@ -93,6 +94,22 @@ local function hop(placeId)
         end
     end
 end
+
+TeleportService.TeleportInitFailed:Connect(function(plr, result, err, placeId, instanceId)
+    if plr ~= player then return end
+    if retrying then return end
+
+    retrying = true
+    warn("Teleport failed:", result, err)
+    task.wait(2)
+
+    if module and currentPlaceId then
+        module:Teleport(currentPlaceId)
+    end
+
+    task.wait(3)
+    retrying = false
+end)
 
 function module:Teleport(placeId)
     hop(placeId)
