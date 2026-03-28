@@ -1,4 +1,4 @@
-local AllIDs = {}
+--[[local AllIDs = {}
 local foundAnything = ""
 local actualHour = os.date("!*t").hour
 local Deleted = false
@@ -71,4 +71,82 @@ function module:Teleport(placeId)
 		end)
 	end
 end
+return module]]
+
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+
+local player = Players.LocalPlayer
+
+local module = {}
+
+local visitedServers = {}
+local cursor = nil
+local hopping = false
+
+local function getServers(placeId)
+    local url = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
+    
+    if cursor then
+        url = url .. "&cursor=" .. cursor
+    end
+
+    local success, response = pcall(function()
+        return game:HttpGet(url)
+    end)
+
+    if not success then
+        warn("Request failed, retrying...")
+        task.wait(2)
+        return nil
+    end
+
+    local data = HttpService:JSONDecode(response)
+    return data
+end
+
+local function hop(placeId)
+    if hopping then return end
+    hopping = true
+
+    while task.wait(2) do
+        local serverData = getServers(placeId)
+
+        if not serverData then continue end
+
+        cursor = serverData.nextPageCursor
+
+        for _, server in pairs(serverData.data) do
+            local id = server.id
+
+            if server.playing < server.maxPlayers and not visitedServers[id] then
+                visitedServers[id] = true
+
+                print("Teleporting to:", id)
+
+                local success, err = pcall(function()
+                    TeleportService:TeleportToPlaceInstance(placeId, id, player)
+                end)
+
+                if success then
+                    task.wait(5)
+                    return
+                else
+                    warn("Teleport failed:", err)
+                end
+            end
+        end
+
+        if not cursor then
+            cursor = nil
+            task.wait(1)
+        end
+    end
+end
+
+function module:Teleport(placeId)
+    hop(placeId)
+end
+
 return module
