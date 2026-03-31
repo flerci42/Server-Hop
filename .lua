@@ -13,6 +13,10 @@ local hopping = false
 local retrying = false
 local currentPlaceId = nil
 
+local lastRefresh = 0
+local REFRESH_INTERVAL = 10
+
+-- Safe JSON decode
 local function safeJSONDecode(str)
     local success, result = pcall(function()
         return HttpService:JSONDecode(str)
@@ -58,10 +62,22 @@ local function hop(placeId)
     while true do
         task.wait(2)
 
+        if tick() - lastRefresh > REFRESH_INTERVAL then
+            cursor = nil
+            visitedServers = {}
+            lastRefresh = tick()
+            print("Refreshing server list...")
+        end
+
         local data = getServers(placeId)
         if not data then continue end
 
-        cursor = data.nextPageCursor
+        if cursor ~= nil then
+            cursor = data.nextPageCursor
+        else
+            cursor = data.nextPageCursor
+        end
+
         local found = false
 
         for _, server in pairs(data.data) do
