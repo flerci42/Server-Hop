@@ -10,13 +10,14 @@ local module = {}
 local visitedServers = {}
 local cursor = nil
 local hopping = false
-local retrying = false
 local currentPlaceId = nil
 
-local lastRefresh = 0
-local REFRESH_INTERVAL = 5
+local REQUEST_DELAY = 2
+local TELEPORT_DELAY = 3
+local REFRESH_INTERVAL = 10
 
--- Safe JSON decode
+local lastRefresh = 0
+
 local function safeJSONDecode(str)
     local success, result = pcall(function()
         return HttpService:JSONDecode(str)
@@ -24,7 +25,7 @@ local function safeJSONDecode(str)
     if success then
         return result
     else
-        warn("JSON decode failed, retrying...")
+        warn("JSON decode failed")
         return nil
     end
 end
@@ -40,45 +41,37 @@ local function getServers(placeId)
     end)
 
     if not success or not response then
-        warn("HTTP request failed, retrying...")
-        task.wait(2)
+        warn("HTTP failed")
+        task.wait(REQUEST_DELAY)
         return nil
     end
 
-    local data = safeJSONDecode(response)
-    if not data then
-        task.wait(1)
-        return nil
-    end
-
-    return data
+    return safeJSONDecode(response)
 end
 
 local function hop(placeId)
-    if hopping then return end
+    if hopping then
+        print("Already hopping, preventing loop stack")
+        return
+    end
+
     hopping = true
     currentPlaceId = placeId
 
-    while true do
-        task.wait(2)
+    while hopping do
+        task.wait(REQUEST_DELAY)
 
         if tick() - lastRefresh > REFRESH_INTERVAL then
             cursor = nil
             visitedServers = {}
             lastRefresh = tick()
-            print("Refreshing server list...")
+            print("Refreshing servers...")
         end
 
         local data = getServers(placeId)
         if not data then continue end
 
-        if cursor ~= nil then
-            cursor = data.nextPageCursor
-        else
-            cursor = data.nextPageCursor
-        end
-
-        local found = false
+        cursor = data.nextPageCursor
 
         for _, server in pairs(data.data) do
             if server.playing < server.maxPlayers
@@ -88,54 +81,40 @@ local function hop(placeId)
 
                 if not visitedServers[id] then
                     visitedServers[id] = true
-                    found = true
 
-                    print("Attempting server:", id)
+                    print("Teleporting to:", id)
 
-                    local success, err = pcall(function()
+                    local success = pcall(function()
                         TeleportService:TeleportToPlaceInstance(placeId, id, player)
                     end)
 
-                    if not success then
-                        if tostring(err):find("771") or tostring(err):find("772") or tostring(err):find("773") or tostring(err):find("Unauthorized") then
-                            print("Skipped broken server:", id)
-                        else
-                            warn("Teleport error:", err)
-                        end
+                    if success then
+                        hopping = false
+                        return
                     end
 
-                    task.wait(2)
+                    task.wait(TELEPORT_DELAY)
                 end
             end
         end
 
-        if not found then
-            print("No available servers in this batch, continuing...")
-        end
-
         if not cursor then
-            print("Reached end, restarting search...")
             visitedServers = {}
             cursor = nil
-            task.wait(1)
         end
     end
 end
 
-TeleportService.TeleportInitFailed:Connect(function(plr, result, err, placeId, instanceId)
+TeleportService.TeleportInitFailed:Connect(function(plr, result)
     if plr ~= player then return end
-    if retrying then return end
 
-    retrying = true
-    warn("Teleport failed:", result, err)
-    task.wait(2)
+    warn("Teleport failed:", result)
 
-    if module and currentPlaceId then
+    if currentPlaceId then
+        hopping = false
+        task.wait(2)
         module:Teleport(currentPlaceId)
     end
-
-    task.wait(3)
-    retrying = false
 end)
 
 function module:Teleport(placeId)
