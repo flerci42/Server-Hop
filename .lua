@@ -65,17 +65,28 @@ local function hop(placeId)
         local found = false
 
         for _, server in pairs(data.data) do
-            if server.playing < server.maxPlayers then
+            if server.playing < server.maxPlayers
+            and not server.accessCode then
+
                 local id = server.id
+
                 if not visitedServers[id] then
                     visitedServers[id] = true
                     found = true
 
                     print("Attempting server:", id)
 
-                    pcall(function()
+                    local success, err = pcall(function()
                         TeleportService:TeleportToPlaceInstance(placeId, id, player)
                     end)
+
+                    if not success then
+                        if tostring(err):find("Unauthorized") then
+                            print("Skipped VIP server:", id)
+                        else
+                            warn("Teleport error:", err)
+                        end
+                    end
 
                     task.wait(2)
                 end
