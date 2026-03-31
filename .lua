@@ -25,7 +25,7 @@ local function safeJSONDecode(str)
     if success then
         return result
     else
-        warn("JSON decode failed")
+        warn("[ADMINUS] - JSON decode failed")
         return nil
     end
 end
@@ -51,7 +51,7 @@ end
 
 local function hop(placeId)
     if hopping then
-        print("Already hopping, preventing loop stack")
+        print("[ADMINUS] - Already hopping, preventing loop stack")
         return
     end
 
@@ -65,7 +65,7 @@ local function hop(placeId)
             cursor = nil
             visitedServers = {}
             lastRefresh = tick()
-            print("Refreshing servers...")
+            print("[ADMINUS] - Refreshing servers...")
         end
 
         local data = getServers(placeId)
@@ -108,7 +108,7 @@ end
 TeleportService.TeleportInitFailed:Connect(function(plr, result)
     if plr ~= player then return end
 
-    warn("Teleport failed:", result)
+    warn("[ADMINUS] - Teleport failed:", result)
 
     if currentPlaceId then
         hopping = false
