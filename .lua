@@ -14,7 +14,7 @@ local retrying = false
 local currentPlaceId = nil
 
 local lastRefresh = 0
-local REFRESH_INTERVAL = 10
+local REFRESH_INTERVAL = 5
 
 -- Safe JSON decode
 local function safeJSONDecode(str)
