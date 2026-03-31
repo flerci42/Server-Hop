@@ -81,8 +81,8 @@ local function hop(placeId)
                     end)
 
                     if not success then
-                        if tostring(err):find("Unauthorized") then
-                            print("Skipped VIP server:", id)
+                        if tostring(err):find("771") or tostring(err):find("772") or tostring(err):find("773") or tostring(err):find("Unauthorized") then
+                            print("Skipped broken server:", id)
                         else
                             warn("Teleport error:", err)
                         end
