@@ -41,7 +41,7 @@ local function getServers(placeId)
     end)
 
     if not success or not response then
-        warn("HTTP failed")
+        warn("[ADMINUS] - HTTP failed")
         task.wait(REQUEST_DELAY)
         return nil
     end
@@ -82,7 +82,7 @@ local function hop(placeId)
                 if not visitedServers[id] then
                     visitedServers[id] = true
 
-                    print("Teleporting to:", id)
+                    print("[ADMINUS] - Teleporting to:", id)
 
                     local success = pcall(function()
                         TeleportService:TeleportToPlaceInstance(placeId, id, player)
